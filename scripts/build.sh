@@ -23,7 +23,7 @@ build_project() {
     BUILD_LOG=$(mktemp)
     make -C .. fullclean > "$BUILD_LOG" 
     make -C .. nodebug >> "$BUILD_LOG"
-    if make -C .. classic >> "$BUILD_LOG" 2>&1; then
+    if make -C .. >> "$BUILD_LOG" 2>&1; then
         echo -e "${GREEN}Build successful.${RESET}"
     else
         echo -e "${RED}Build failed. Please check the error details below:${RESET}"
