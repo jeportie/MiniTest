@@ -1,0 +1,74 @@
+#!/usr/bin/expect
+
+# Disable timeout
+set timeout 0
+
+# Check if command file is provided
+if { [llength $argv] != 1 } {
+    puts "Usage: $argv0 <command_file>"
+    exit 1
+}
+set command_file [lindex $argv 0]
+
+# Figure out subdir from the command_file path
+# e.g. test_commands/bonus/bonus_subshells.txt => subdir="bonus"
+set subdir [file tail [file dirname $command_file]]
+set base_name [file rootname [file tail $command_file]]
+# Now place outputs in test_outputs/<subdir>/
+set output_file "test_outputs/$subdir/bash_output_${base_name}.txt"
+
+# Desired prompt
+set prompt "\$USER@minishell \$> "
+
+# Start bash
+spawn bash --posix
+
+# Truncate the output file
+log_file -noappend $output_file
+
+# Wait for initial shell prompt
+expect -re ".*\$ "
+sleep 0.1
+
+# Change bash prompt
+send "export PS1='$prompt'\r"
+expect -re "^$prompt"
+sleep 0.1
+
+set file [open $command_file r]
+set heredoc_mode 0
+set heredoc_delimiter ""
+
+while {[gets $file line] != -1} {
+    if {[string trim $line] eq ""} {
+        continue
+    }
+    send "$line\r"
+    expect -re "^$prompt"
+    sleep 0.1
+
+    if {[regexp {<<\s*(\S+)} $line match delim]} {
+        # Entering heredoc mode
+        set heredoc_mode 1
+        set heredoc_delimiter $delim
+        continue
+    }
+    if {$heredoc_mode && [string trim $line] eq $heredoc_delimiter} {
+        set heredoc_mode 0
+        send "echo \$?\r"
+        expect -re "^$prompt"
+        sleep 0.1
+        continue
+    }
+    if {!$heredoc_mode} {
+        send "echo \$?\r"
+        expect -re "^$prompt"
+        sleep 0.1
+    }
+}
+close $file
+
+# Exit bash
+send "exit\r"
+expect eof
+log_file

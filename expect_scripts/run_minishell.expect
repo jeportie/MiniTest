@@ -1,0 +1,57 @@
+#!/usr/bin/expect -f
+
+set timeout 0
+
+if { [llength $argv] != 1 } {
+    puts "Usage: $argv0 <command_file>"
+    exit 1
+}
+set command_file [lindex $argv 0]
+
+set subdir [file tail [file dirname $command_file]]
+set base_name [file rootname [file tail $command_file]]
+set output_file "test_outputs/$subdir/minishell_output_${base_name}.txt"
+
+set prompt "\$USER@minishell \$> "
+
+spawn ../minishell
+log_file -noappend $output_file
+
+expect -re "^$prompt"
+sleep 0.1
+
+set file [open $command_file r]
+set heredoc_mode 0
+set heredoc_delimiter ""
+
+while {[gets $file line] != -1} {
+    if {[string trim $line] eq ""} {
+        continue
+    }
+    send "$line\r"
+    expect -re "^$prompt"
+    sleep 0.1
+
+    if {[regexp {<<\s*(\S+)} $line match delim]} {
+        set heredoc_mode 1
+        set heredoc_delimiter $delim
+        continue
+    }
+    if {$heredoc_mode && [string trim $line] eq $heredoc_delimiter} {
+        set heredoc_mode 0
+        send "echo \$?\r"
+        expect -re "^$prompt"
+        sleep 0.1
+        continue
+    }
+    if {!$heredoc_mode} {
+        send "echo \$?\r"
+        expect -re "^$prompt"
+        sleep 0.1
+    }
+}
+close $file
+
+send "exit\r"
+expect eof
+log_file
